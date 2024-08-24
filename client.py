@@ -1,6 +1,7 @@
 import socket
 import os
 import time
+import argparse
 from file_monitor import FileMonitor
 
 class FileClient:
@@ -63,6 +64,10 @@ class FileClient:
 
     def send_file(self, file_path):
         """发送文件到服务端"""
+        if not os.path.isfile(file_path):
+            print(f"Skipping {file_path} because it is not a file.")
+            return
+
         with open(file_path, 'rb') as file:
             file_name = os.path.basename(file_path)
             file_size = os.path.getsize(file_path)
@@ -89,7 +94,21 @@ class FileClient:
                     chunk = file.read(1024)
 
                 print(f"File '{file_name}' sent to server.")
-                
+
 if __name__ == "__main__":
-    client = FileClient(server_host='172.21.22.78', server_port=12345)
+    # 创建参数解析器
+    parser = argparse.ArgumentParser(description="Start the FileClient to watch a directory and send files to a server.")
+
+    # 添加 `--serviceip` 参数
+    parser.add_argument('-sip', '--serviceip', 
+                        type=str, default='127.0.0.1', 
+                        help='The IP address of the server to connect to.')
+    parser.add_argument('-wd', '--watchDir', type=str, default='./watch_directory', 
+                        help='The directory of monitored folder.')
+
+    # 解析参数
+    args = parser.parse_args()
+    client = FileClient(server_host=args.serviceip,
+                        server_port=12345, 
+                        watch_directory=args.watchDir)
     client.start()
