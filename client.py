@@ -1,47 +1,58 @@
 import socket
 import os
 import time
+from file_monitor import FileMonitor
 
-def watch_directory(directory, host='172.21.22.78', port=12345):
-    # 追踪已有的文件
-    files_set = set(os.listdir(directory))
+class FileClient:
+    def __init__(self, server_host='127.0.0.1', server_port=12345, watch_directory='./watch_directory'):
+        self.server_host = server_host
+        self.server_port = server_port
+        self.watch_directory = watch_directory
 
-    while True:
-        # 检查新文件
-        current_files = set(os.listdir(directory))
-        new_files = current_files - files_set
+    def start(self):
+        """启动文件监控并发送新文件"""
+        os.makedirs(self.watch_directory, exist_ok=True)
+        monitor = FileMonitor(self.watch_directory, self.send_file)
+        monitor.start()
 
-        for new_file in new_files:
-            file_path = os.path.join(directory, new_file)
-            send_file(file_path, host, port)
-        
-        # 更新追踪的文件集合
-        files_set = current_files
-        time.sleep(1)  # 等待一段时间后再次检查文件夹
-
-def send_file(file_path, host, port):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
-        client_socket.connect((host, port))
-        file_name = os.path.basename(file_path)
-        
-        # 发送文件名长度和文件名
-        client_socket.send(len(file_name).to_bytes(4, 'big'))
-        client_socket.send(file_name.encode())
-
-        # 发送文件大小
-        file_size = os.path.getsize(file_path)
-        client_socket.send(file_size.to_bytes(8, 'big'))
-
-        # 发送文件内容
-        with open(file_path, 'rb') as f:
+        # 保持主线程运行
+        try:
             while True:
-                data = f.read(1024)
-                if not data:
-                    break
-                client_socket.sendall(data)
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("Shutting down client...")
+            monitor.stop()
 
-        print(f"File '{file_name}' sent to server.")
+    def send_file(self, file_path):
+        """发送文件到服务端"""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
+                print(f"Connecting to server at {self.server_host}:{self.server_port}...")
+                client_socket.connect((self.server_host, self.server_port))
+                print("Connected to server.")
+                file_name = os.path.basename(file_path)
+
+                # 发送文件名长度和文件名
+                client_socket.send(len(file_name).to_bytes(4, 'big'))
+                client_socket.send(file_name.encode())
+                print(f"Sent file name: {file_name}")
+
+                # 发送文件大小
+                file_size = os.path.getsize(file_path)
+                client_socket.send(file_size.to_bytes(8, 'big'))
+                print(f"Sent file size: {file_size} bytes")
+
+                # 发送文件内容
+                with open(file_path, 'rb') as f:
+                    while True:
+                        data = f.read(1024)
+                        if not data:
+                            break
+                        client_socket.sendall(data)
+                print(f"File '{file_name}' sent to server.")
+        except Exception as e:
+            print(f"Error sending file {file_path}: {e}")
 
 if __name__ == "__main__":
-    # 设置监控的目录
-    watch_directory('./watch_directory')
+    client = FileClient(server_host='172.21.22.78', server_port=12345)
+    client.start()

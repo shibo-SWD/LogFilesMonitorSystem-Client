@@ -1,3 +1,7 @@
 # received files
 *.log
 watch_directory/*
+
+# pyc files
+__pycache__/*
+*.pyc
